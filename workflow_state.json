@@ -1,0 +1,10 @@
+{
+  "agents": {
+    "master_orchestrator": {
+      "agent_id": "69789df351dd406198f85a00",
+      "name": "Master Orchestrator",
+      "type": "pre-built",
+      "description": "Existing Lyzr agent handling customer verification, triage, and resolution via sub-agents (Account Retrieval, Intent & Triage, Outage Status, Password Reset)"
+    }
+  }
+}

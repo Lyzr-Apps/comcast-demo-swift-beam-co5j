@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {"id": "input_node", "type": "Input", "label": "Customer Message", "nodeCategory": "input"},
+    {"id": "master_orchestrator", "type": "Agent", "label": "Master Orchestrator (Pre-built)", "nodeCategory": "agent"},
+    {"id": "output_node", "type": "Output", "label": "Chat Response", "nodeCategory": "end"}
+  ],
+  "edges": [
+    {"source": "input_node", "target": "master_orchestrator"},
+    {"source": "master_orchestrator", "target": "output_node"}
+  ]
+}

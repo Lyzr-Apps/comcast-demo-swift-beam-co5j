@@ -1,0 +1,15 @@
+{
+  "agent_name": "Master Orchestrator",
+  "agent_id": "69789df351dd406198f85a00",
+  "agent_type": "text",
+  "accessor": "text",
+  "has_module_outputs": false,
+  "description": "Pre-built Lyzr agent for Xfinity customer support. Returns text responses for customer verification, triage, outage reporting, and password reset workflows.",
+  "response_fields": {
+    "text": {
+      "type": "string",
+      "description": "The agent's text response message"
+    }
+  },
+  "access_pattern": "result.response.result.text || result.response.message"
+}
