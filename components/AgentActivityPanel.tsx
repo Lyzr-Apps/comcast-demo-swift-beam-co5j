@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 interface AgentActivityPanelProps extends AgentActivityState {
   className?: string;
+  showPanel?: boolean;
 }
 
 // Format event time
@@ -71,11 +72,12 @@ export function AgentActivityPanel({
   activeAgentName,
   isProcessing,
   className,
+  showPanel = false,
 }: AgentActivityPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [showThinking, setShowThinking] = useState(true);
-  
+
   const safeEvents = Array.isArray(events) ? events : [];
 
   // Auto-scroll to bottom when new events arrive
@@ -87,9 +89,6 @@ export function AgentActivityPanel({
 
   // Get recent events (last 20)
   const recentEvents = safeEvents.slice(-20);
-
-  // Set to true to show the Agent Activity panel again
-  const showPanel = false;
 
   if (!showPanel) return null;
 

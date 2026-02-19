@@ -5,7 +5,7 @@ import { callAIAgent, extractText } from '@/lib/aiAgent'
 import { cn, generateUUID } from '@/lib/utils'
 import { useLyzrAgentEvents } from '@/lib/lyzrAgentEvents'
 import { AgentActivityPanel } from '@/components/AgentActivityPanel'
-import { FiSend, FiRefreshCw, FiMessageCircle, FiUser, FiAlertCircle, FiWifi } from 'react-icons/fi'
+import { FiSend, FiRefreshCw, FiMessageCircle, FiUser, FiAlertCircle, FiWifi, FiActivity } from 'react-icons/fi'
 import { HiOutlineSupport } from 'react-icons/hi'
 import { RiRobot2Line } from 'react-icons/ri'
 import { BiChevronDown } from 'react-icons/bi'
@@ -204,58 +204,12 @@ function ScrollToBottomButton({ onClick, visible }: { onClick: () => void; visib
   )
 }
 
-// ---- Sample Data ----
-const SAMPLE_MESSAGES: ChatMessage[] = [
-  {
-    id: 'sample-1',
-    role: 'user',
-    content: 'Hi, my internet connection has been very slow for the past two days. Can you help?',
-    timestamp: '10:24 AM',
-    status: 'sent',
-  },
-  {
-    id: 'sample-2',
-    role: 'agent',
-    content: "I'm sorry to hear about the slow internet speeds you've been experiencing. Let me look into this for you right away.\n\nCould you please provide me with your **account number** or the **phone number** associated with your Xfinity account so I can pull up your details?",
-    timestamp: '10:24 AM',
-    status: 'sent',
-  },
-  {
-    id: 'sample-3',
-    role: 'user',
-    content: 'Sure, my account number is 8472-5931-0042.',
-    timestamp: '10:25 AM',
-    status: 'sent',
-  },
-  {
-    id: 'sample-4',
-    role: 'agent',
-    content: "Thank you for providing that. I can see your account and I'd like to run a few diagnostics.\n\n**Here's what I'm checking:**\n- Signal strength to your modem\n- Any outages in your area\n- Current firmware version on your gateway\n\nI can see there was a **network maintenance** in your area yesterday that may have affected speeds. The issue should now be resolved. Could you try restarting your modem by unplugging it for 30 seconds and plugging it back in?",
-    timestamp: '10:26 AM',
-    status: 'sent',
-  },
-  {
-    id: 'sample-5',
-    role: 'user',
-    content: 'I just restarted it. Speeds seem a bit better now, but still not at the full speed I pay for.',
-    timestamp: '10:28 AM',
-    status: 'sent',
-  },
-  {
-    id: 'sample-6',
-    role: 'agent',
-    content: "Good to hear there's some improvement! Since you're not getting full speeds yet, I'm going to:\n\n1. **Send a refresh signal** to your modem remotely\n2. **Check for any firmware updates** that may optimize performance\n3. **Schedule a technician visit** if the issue persists\n\nThe refresh signal has been sent. Please give it about **5 minutes** and run a speed test at speedtest.xfinity.com. If speeds are still below your plan's tier, I can schedule a technician visit at no charge. Is there anything else I can help you with?",
-    timestamp: '10:29 AM',
-    status: 'sent',
-  },
-]
-
 // ---- Main Page Component ----
 export default function Page() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [showSampleData, setShowSampleData] = useState(false)
+  const [showBackendPanel, setShowBackendPanel] = useState(false)
   const [showNewChatConfirm, setShowNewChatConfirm] = useState(false)
   const [userAutoScrollPaused, setUserAutoScrollPaused] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
@@ -452,13 +406,11 @@ export default function Page() {
     [sendMessage]
   )
 
-  const displayMessages = showSampleData && messages.length === 0 ? SAMPLE_MESSAGES : messages
-
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(230, 50%, 95%) 0%, hsl(260, 45%, 94%) 40%, hsl(220, 50%, 95%) 70%, hsl(200, 45%, 94%) 100%)' }}>
       {/* ========== HEADER ========== */}
       <header className="flex-shrink-0 w-full z-30 border-b border-white/20" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2.5">
               <img src={COMCAST_LOGO} alt="Comcast" className="h-8 w-auto object-contain rounded" />
@@ -469,21 +421,23 @@ export default function Page() {
             <span className="text-sm font-semibold text-foreground hidden sm:inline" style={{ letterSpacing: '-0.01em' }}>Xfinity Support</span>
           </div>
           <div className="flex items-center gap-3">
-            {/* Sample Data Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <span className="text-xs text-muted-foreground">Sample Data</span>
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={showSampleData}
-                  onChange={(e) => setShowSampleData(e.target.checked)}
-                />
-                <div className={cn('w-9 h-5 rounded-full transition-colors duration-200', showSampleData ? 'bg-blue-500' : 'bg-muted')}>
-                  <div className={cn('absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200', showSampleData ? 'translate-x-4' : 'translate-x-0')} />
-                </div>
-              </div>
-            </label>
+            {/* Backend Logic Toggle */}
+            <button
+              onClick={() => setShowBackendPanel(!showBackendPanel)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
+                showBackendPanel
+                  ? 'bg-blue-500/10 text-blue-600 border border-blue-200'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
+              )}
+              title="Toggle Backend Logic Panel"
+            >
+              <FiActivity className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Backend Logic</span>
+              {agentActivity.isConnected && (
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              )}
+            </button>
 
             {/* New Chat */}
             <div className="relative">
@@ -525,95 +479,109 @@ export default function Page() {
         <div className="fixed inset-0 z-20" onClick={() => setShowNewChatConfirm(false)} />
       )}
 
-      {/* ========== CHAT AREA ========== */}
-      <div className="flex-1 min-h-0 flex justify-center">
-        <div className="w-full max-w-3xl flex flex-col relative">
-          <div
-            ref={chatContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto px-4 py-4"
-          >
-            {displayMessages.length === 0 ? (
-              <WelcomeCard />
-            ) : (
-              <div className="space-y-4 pb-2">
-                {displayMessages.map((msg) => (
-                  <MessageBubble key={msg.id} message={msg} onRetry={handleRetry} />
-                ))}
-                {isLoading && <TypingIndicator />}
+      {/* ========== MAIN CONTENT: CHAT + SIDE PANEL ========== */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* ---- Chat Column ---- */}
+        <div className={cn('flex flex-col transition-all duration-300 ease-in-out', showBackendPanel ? 'w-[60%]' : 'w-full')}>
+          {/* Chat Messages */}
+          <div className="flex-1 min-h-0 flex justify-center">
+            <div className={cn('w-full flex flex-col relative', !showBackendPanel && 'max-w-3xl')}>
+              <div
+                ref={chatContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto px-4 py-4"
+              >
+                {messages.length === 0 ? (
+                  <WelcomeCard />
+                ) : (
+                  <div className="space-y-4 pb-2">
+                    {messages.map((msg) => (
+                      <MessageBubble key={msg.id} message={msg} onRetry={handleRetry} />
+                    ))}
+                    {isLoading && <TypingIndicator />}
+                  </div>
+                )}
               </div>
-            )}
+
+              <ScrollToBottomButton onClick={scrollToBottom} visible={userAutoScrollPaused && messages.length > 0} />
+            </div>
           </div>
 
-          <ScrollToBottomButton onClick={scrollToBottom} visible={userAutoScrollPaused && displayMessages.length > 0} />
-        </div>
-      </div>
+          {/* Input Bar */}
+          <div className="flex-shrink-0 w-full border-t border-white/20 z-30" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
+            <div className={cn('mx-auto px-4 py-3', !showBackendPanel && 'max-w-3xl')}>
+              <div className="flex items-end gap-2 rounded-2xl border border-border bg-white/80 backdrop-blur-md shadow-sm px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200">
+                <textarea
+                  ref={textareaRef}
+                  value={inputValue}
+                  onChange={(e) => {
+                    setInputValue(e.target.value)
+                    handleTextareaInput()
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type your message..."
+                  rows={1}
+                  className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground max-h-[120px] py-1"
+                  style={{ letterSpacing: '-0.01em', lineHeight: '1.55' }}
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={!inputValue.trim() || isLoading}
+                  className={cn(
+                    'flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200',
+                    inputValue.trim() && !isLoading
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105 active:scale-95'
+                      : 'bg-muted text-muted-foreground cursor-not-allowed'
+                  )}
+                >
+                  {isLoading ? (
+                    <FiRefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FiSend className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground text-center mt-2">Press Enter to send, Shift+Enter for a new line</p>
+            </div>
+          </div>
 
-      {/* ========== INPUT BAR ========== */}
-      <div className="flex-shrink-0 w-full border-t border-white/20 z-30" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <div className="flex items-end gap-2 rounded-2xl border border-border bg-white/80 backdrop-blur-md shadow-sm px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200">
-            <textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(e) => {
-                setInputValue(e.target.value)
-                handleTextareaInput()
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
-              rows={1}
-              className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground max-h-[120px] py-1"
-              style={{ letterSpacing: '-0.01em', lineHeight: '1.55' }}
-              disabled={isLoading}
+          {/* Agent Info Footer */}
+          <div className="flex-shrink-0 border-t border-white/10 px-4 py-2" style={{ background: 'rgba(255,255,255,0.5)' }}>
+            <div className={cn('mx-auto flex items-center justify-between', !showBackendPanel && 'max-w-3xl')}>
+              <div className="flex items-center gap-2">
+                <FiMessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground">Powered by</span>
+                <span className="text-[11px] font-medium text-foreground">Master Orchestrator</span>
+                <span className="text-[11px] text-muted-foreground hidden sm:inline">| Xfinity Customer Support Agent</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className={cn('w-1.5 h-1.5 rounded-full', activeAgentId ? 'bg-amber-400 animate-pulse' : 'bg-green-500')} />
+                <span className="text-[11px] text-muted-foreground">{activeAgentId ? 'Processing' : 'Ready'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ---- Backend Logic Side Panel ---- */}
+        <div className={cn(
+          'flex-shrink-0 border-l border-white/20 transition-all duration-300 ease-in-out overflow-hidden',
+          showBackendPanel ? 'w-[40%] opacity-100' : 'w-0 opacity-0'
+        )} style={{ background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)' }}>
+          {showBackendPanel && (
+            <AgentActivityPanel
+              isConnected={agentActivity.isConnected}
+              events={agentActivity.events}
+              thinkingEvents={agentActivity.thinkingEvents}
+              lastThinkingMessage={agentActivity.lastThinkingMessage}
+              activeAgentId={agentActivity.activeAgentId}
+              activeAgentName={agentActivity.activeAgentName}
+              isProcessing={agentActivity.isProcessing}
+              showPanel={true}
             />
-            <button
-              onClick={() => sendMessage()}
-              disabled={!inputValue.trim() || isLoading}
-              className={cn(
-                'flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200',
-                inputValue.trim() && !isLoading
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105 active:scale-95'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed'
-              )}
-            >
-              {isLoading ? (
-                <FiRefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <FiSend className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-          <p className="text-[10px] text-muted-foreground text-center mt-2">Press Enter to send, Shift+Enter for a new line</p>
+          )}
         </div>
       </div>
-
-      {/* ========== AGENT INFO FOOTER ========== */}
-      <div className="flex-shrink-0 border-t border-white/10 px-4 py-2" style={{ background: 'rgba(255,255,255,0.5)' }}>
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FiMessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-[11px] text-muted-foreground">Powered by</span>
-            <span className="text-[11px] font-medium text-foreground">Master Orchestrator</span>
-            <span className="text-[11px] text-muted-foreground hidden sm:inline">| Xfinity Customer Support Agent</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className={cn('w-1.5 h-1.5 rounded-full', activeAgentId ? 'bg-amber-400 animate-pulse' : 'bg-green-500')} />
-            <span className="text-[11px] text-muted-foreground">{activeAgentId ? 'Processing' : 'Ready'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ========== AGENT ACTIVITY PANEL ========== */}
-      <AgentActivityPanel
-        isConnected={agentActivity.isConnected}
-        events={agentActivity.events}
-        thinkingEvents={agentActivity.thinkingEvents}
-        lastThinkingMessage={agentActivity.lastThinkingMessage}
-        activeAgentId={agentActivity.activeAgentId}
-        activeAgentName={agentActivity.activeAgentName}
-        isProcessing={agentActivity.isProcessing}
-      />
     </div>
   )
 }
