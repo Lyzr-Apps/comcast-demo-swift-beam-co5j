@@ -213,21 +213,18 @@ export default function Page() {
   const [showNewChatConfirm, setShowNewChatConfirm] = useState(false)
   const [userAutoScrollPaused, setUserAutoScrollPaused] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
+  // Track the actual Lyzr session_id (returned from API) as state so the
+  // WebSocket hook re-subscribes reactively when it changes
+  const [lyzrSessionId, setLyzrSessionId] = useState<string | null>(null)
 
-  const userIdRef = useRef('')
-  const sessionIdRef = useRef('')
+  const userIdRef = useRef(generateUUID())
+  const sessionIdRef = useRef(generateUUID())
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lastAgentMsgCountRef = useRef(0)
 
-  // Agent activity monitoring
-  const agentActivity = useLyzrAgentEvents(sessionIdRef.current || null)
-
-  // Initialize user_id and session_id on mount
-  useEffect(() => {
-    userIdRef.current = generateUUID()
-    sessionIdRef.current = generateUUID()
-  }, [])
+  // Agent activity monitoring -- uses the real Lyzr session_id from API response
+  const agentActivity = useLyzrAgentEvents(lyzrSessionId)
 
   // Format time helper
   const formatTime = useCallback(() => {
@@ -308,6 +305,13 @@ export default function Page() {
           session_id: sessionIdRef.current,
         })
 
+        // Capture the real session_id from the API response so the WebSocket
+        // connects to the correct Lyzr metrics stream
+        if (result.session_id) {
+          sessionIdRef.current = result.session_id
+          setLyzrSessionId(result.session_id)
+        }
+
         if (result.success) {
           let responseText = extractText(result.response)
           if (!responseText && result.response?.result) {
@@ -384,6 +388,7 @@ export default function Page() {
   const handleNewChat = useCallback(() => {
     setMessages([])
     sessionIdRef.current = generateUUID()
+    setLyzrSessionId(null)
     setInputValue('')
     setShowNewChatConfirm(false)
     setUserAutoScrollPaused(false)

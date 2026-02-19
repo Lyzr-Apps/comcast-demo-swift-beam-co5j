@@ -290,15 +290,14 @@ export function useLyzrAgentEvents(
       };
 
       ws.onclose = (event) => {
-        console.log("🔴 Lyzr WebSocket closed:", event.code, event.reason);
+        console.log("WebSocket closed:", event.code, event.reason);
         setIsConnected(false);
         wsRef.current = null;
 
-        // Attempt reconnect with exponential backoff
-        if (isProcessingRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        // Attempt reconnect with exponential backoff while we have a session
+        if (sessionId && reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
           reconnectAttemptsRef.current++;
-          console.log(`⏳ Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
           reconnectTimeoutRef.current = setTimeout(connect, delay);
         }
       };
@@ -310,11 +309,16 @@ export function useLyzrAgentEvents(
 
   /**
    * Effect to manage WebSocket connection
+   *
+   * Connects whenever a valid sessionId is provided (the real Lyzr
+   * session_id captured from the first API response). The connection
+   * stays open so late-arriving events are still received even after
+   * processing completes. It disconnects when sessionId becomes null
+   * (e.g. new chat / reset).
    */
   useEffect(() => {
-    // Only connect while processing (prevents idle errors/spam)
-    if (!sessionId || !isProcessing) {
-      // Ensure we are disconnected in idle state
+    if (!sessionId) {
+      // No session — disconnect
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -327,13 +331,11 @@ export function useLyzrAgentEvents(
       return;
     }
 
-    console.log("🔄 Session ID changed, connecting...");
-
     // Small delay to ensure state is settled
     const timeoutId = setTimeout(() => {
       connect();
     }, 100);
-    
+
     return () => {
       clearTimeout(timeoutId);
       if (wsRef.current) {
@@ -345,7 +347,7 @@ export function useLyzrAgentEvents(
         reconnectTimeoutRef.current = null;
       }
     };
-  }, [sessionId, connect, isProcessing]);
+  }, [sessionId, connect]);
 
   return {
     isConnected,
