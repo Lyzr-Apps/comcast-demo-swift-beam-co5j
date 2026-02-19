@@ -3,9 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { callAIAgent, extractText } from '@/lib/aiAgent'
 import { cn, generateUUID } from '@/lib/utils'
-import { useLyzrAgentEvents } from '@/lib/lyzrAgentEvents'
-import { AgentActivityPanel } from '@/components/AgentActivityPanel'
-import { FiSend, FiRefreshCw, FiMessageCircle, FiUser, FiAlertCircle, FiWifi, FiActivity } from 'react-icons/fi'
+import { FiSend, FiRefreshCw, FiMessageCircle, FiUser, FiAlertCircle, FiWifi } from 'react-icons/fi'
 import { HiOutlineSupport } from 'react-icons/hi'
 import { RiRobot2Line } from 'react-icons/ri'
 import { BiChevronDown } from 'react-icons/bi'
@@ -209,22 +207,15 @@ export default function Page() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [showBackendPanel, setShowBackendPanel] = useState(false)
   const [showNewChatConfirm, setShowNewChatConfirm] = useState(false)
   const [userAutoScrollPaused, setUserAutoScrollPaused] = useState(false)
-  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
-  // Track the actual Lyzr session_id (returned from API) as state so the
-  // WebSocket hook re-subscribes reactively when it changes
-  const [lyzrSessionId, setLyzrSessionId] = useState<string | null>(null)
+  const [isAgentActive, setIsAgentActive] = useState(false)
 
   const userIdRef = useRef(generateUUID())
   const sessionIdRef = useRef(generateUUID())
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lastAgentMsgCountRef = useRef(0)
-
-  // Agent activity monitoring -- uses the real Lyzr session_id from API response
-  const agentActivity = useLyzrAgentEvents(lyzrSessionId)
 
   // Format time helper
   const formatTime = useCallback(() => {
@@ -295,8 +286,7 @@ export default function Page() {
         textareaRef.current.style.height = 'auto'
       }
       setIsLoading(true)
-      setActiveAgentId(AGENT_ID)
-      agentActivity.setProcessing(true)
+      setIsAgentActive(true)
       setUserAutoScrollPaused(false)
 
       try {
@@ -305,11 +295,9 @@ export default function Page() {
           session_id: sessionIdRef.current,
         })
 
-        // Capture the real session_id from the API response so the WebSocket
-        // connects to the correct Lyzr metrics stream
+        // Keep the session_id from API response for continuity
         if (result.session_id) {
           sessionIdRef.current = result.session_id
-          setLyzrSessionId(result.session_id)
         }
 
         if (result.success) {
@@ -356,11 +344,10 @@ export default function Page() {
         setMessages((prev) => [...prev, agentErrorMessage])
       } finally {
         setIsLoading(false)
-        setActiveAgentId(null)
-        agentActivity.setProcessing(false)
+        setIsAgentActive(false)
       }
     },
-    [inputValue, isLoading, formatTime, agentActivity]
+    [inputValue, isLoading, formatTime]
   )
 
   // Retry failed message
@@ -388,17 +375,15 @@ export default function Page() {
   const handleNewChat = useCallback(() => {
     setMessages([])
     sessionIdRef.current = generateUUID()
-    setLyzrSessionId(null)
     setInputValue('')
     setShowNewChatConfirm(false)
     setUserAutoScrollPaused(false)
-    setActiveAgentId(null)
-    agentActivity.reset()
+    setIsAgentActive(false)
     lastAgentMsgCountRef.current = 0
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [agentActivity])
+  }, [])
 
   // Handle key press
   const handleKeyDown = useCallback(
@@ -415,7 +400,7 @@ export default function Page() {
     <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(230, 50%, 95%) 0%, hsl(260, 45%, 94%) 40%, hsl(220, 50%, 95%) 70%, hsl(200, 45%, 94%) 100%)' }}>
       {/* ========== HEADER ========== */}
       <header className="flex-shrink-0 w-full z-30 border-b border-white/20" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
-        <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2.5">
               <img src={COMCAST_LOGO} alt="Comcast" className="h-8 w-auto object-contain rounded" />
@@ -426,24 +411,6 @@ export default function Page() {
             <span className="text-sm font-semibold text-foreground hidden sm:inline" style={{ letterSpacing: '-0.01em' }}>Xfinity Support</span>
           </div>
           <div className="flex items-center gap-3">
-            {/* Backend Logic Toggle */}
-            <button
-              onClick={() => setShowBackendPanel(!showBackendPanel)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
-                showBackendPanel
-                  ? 'bg-blue-500/10 text-blue-600 border border-blue-200'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80'
-              )}
-              title="Toggle Backend Logic Panel"
-            >
-              <FiActivity className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Backend Logic</span>
-              {agentActivity.isConnected && (
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              )}
-            </button>
-
             {/* New Chat */}
             <div className="relative">
               <button
@@ -484,107 +451,82 @@ export default function Page() {
         <div className="fixed inset-0 z-20" onClick={() => setShowNewChatConfirm(false)} />
       )}
 
-      {/* ========== MAIN CONTENT: CHAT + SIDE PANEL ========== */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* ---- Chat Column ---- */}
-        <div className={cn('flex flex-col transition-all duration-300 ease-in-out', showBackendPanel ? 'w-[60%]' : 'w-full')}>
-          {/* Chat Messages */}
-          <div className="flex-1 min-h-0 flex justify-center">
-            <div className={cn('w-full flex flex-col relative', !showBackendPanel && 'max-w-3xl')}>
-              <div
-                ref={chatContainerRef}
-                onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-4 py-4"
-              >
-                {messages.length === 0 ? (
-                  <WelcomeCard />
-                ) : (
-                  <div className="space-y-4 pb-2">
-                    {messages.map((msg) => (
-                      <MessageBubble key={msg.id} message={msg} onRetry={handleRetry} />
-                    ))}
-                    {isLoading && <TypingIndicator />}
-                  </div>
-                )}
+      {/* ========== CHAT AREA ========== */}
+      <div className="flex-1 min-h-0 flex justify-center">
+        <div className="w-full max-w-3xl flex flex-col relative">
+          <div
+            ref={chatContainerRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto px-4 py-4"
+          >
+            {messages.length === 0 ? (
+              <WelcomeCard />
+            ) : (
+              <div className="space-y-4 pb-2">
+                {messages.map((msg) => (
+                  <MessageBubble key={msg.id} message={msg} onRetry={handleRetry} />
+                ))}
+                {isLoading && <TypingIndicator />}
               </div>
-
-              <ScrollToBottomButton onClick={scrollToBottom} visible={userAutoScrollPaused && messages.length > 0} />
-            </div>
+            )}
           </div>
 
-          {/* Input Bar */}
-          <div className="flex-shrink-0 w-full border-t border-white/20 z-30" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
-            <div className={cn('mx-auto px-4 py-3', !showBackendPanel && 'max-w-3xl')}>
-              <div className="flex items-end gap-2 rounded-2xl border border-border bg-white/80 backdrop-blur-md shadow-sm px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200">
-                <textarea
-                  ref={textareaRef}
-                  value={inputValue}
-                  onChange={(e) => {
-                    setInputValue(e.target.value)
-                    handleTextareaInput()
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type your message..."
-                  rows={1}
-                  className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground max-h-[120px] py-1"
-                  style={{ letterSpacing: '-0.01em', lineHeight: '1.55' }}
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={() => sendMessage()}
-                  disabled={!inputValue.trim() || isLoading}
-                  className={cn(
-                    'flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200',
-                    inputValue.trim() && !isLoading
-                      ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105 active:scale-95'
-                      : 'bg-muted text-muted-foreground cursor-not-allowed'
-                  )}
-                >
-                  {isLoading ? (
-                    <FiRefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <FiSend className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-              <p className="text-[10px] text-muted-foreground text-center mt-2">Press Enter to send, Shift+Enter for a new line</p>
-            </div>
-          </div>
-
-          {/* Agent Info Footer */}
-          <div className="flex-shrink-0 border-t border-white/10 px-4 py-2" style={{ background: 'rgba(255,255,255,0.5)' }}>
-            <div className={cn('mx-auto flex items-center justify-between', !showBackendPanel && 'max-w-3xl')}>
-              <div className="flex items-center gap-2">
-                <FiMessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground">Powered by</span>
-                <span className="text-[11px] font-medium text-foreground">Master Orchestrator</span>
-                <span className="text-[11px] text-muted-foreground hidden sm:inline">| Xfinity Customer Support Agent</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className={cn('w-1.5 h-1.5 rounded-full', activeAgentId ? 'bg-amber-400 animate-pulse' : 'bg-green-500')} />
-                <span className="text-[11px] text-muted-foreground">{activeAgentId ? 'Processing' : 'Ready'}</span>
-              </div>
-            </div>
-          </div>
+          <ScrollToBottomButton onClick={scrollToBottom} visible={userAutoScrollPaused && messages.length > 0} />
         </div>
+      </div>
 
-        {/* ---- Backend Logic Side Panel ---- */}
-        <div className={cn(
-          'flex-shrink-0 border-l border-white/20 transition-all duration-300 ease-in-out overflow-hidden',
-          showBackendPanel ? 'w-[40%] opacity-100' : 'w-0 opacity-0'
-        )} style={{ background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)' }}>
-          {showBackendPanel && (
-            <AgentActivityPanel
-              isConnected={agentActivity.isConnected}
-              events={agentActivity.events}
-              thinkingEvents={agentActivity.thinkingEvents}
-              lastThinkingMessage={agentActivity.lastThinkingMessage}
-              activeAgentId={agentActivity.activeAgentId}
-              activeAgentName={agentActivity.activeAgentName}
-              isProcessing={agentActivity.isProcessing}
-              showPanel={true}
+      {/* ========== INPUT BAR ========== */}
+      <div className="flex-shrink-0 w-full border-t border-white/20 z-30" style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}>
+        <div className="max-w-3xl mx-auto px-4 py-3">
+          <div className="flex items-end gap-2 rounded-2xl border border-border bg-white/80 backdrop-blur-md shadow-sm px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200">
+            <textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value)
+                handleTextareaInput()
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message..."
+              rows={1}
+              className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-foreground placeholder:text-muted-foreground max-h-[120px] py-1"
+              style={{ letterSpacing: '-0.01em', lineHeight: '1.55' }}
+              disabled={isLoading}
             />
-          )}
+            <button
+              onClick={() => sendMessage()}
+              disabled={!inputValue.trim() || isLoading}
+              className={cn(
+                'flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200',
+                inputValue.trim() && !isLoading
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:scale-105 active:scale-95'
+                  : 'bg-muted text-muted-foreground cursor-not-allowed'
+              )}
+            >
+              {isLoading ? (
+                <FiRefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <FiSend className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground text-center mt-2">Press Enter to send, Shift+Enter for a new line</p>
+        </div>
+      </div>
+
+      {/* ========== AGENT INFO FOOTER ========== */}
+      <div className="flex-shrink-0 border-t border-white/10 px-4 py-2" style={{ background: 'rgba(255,255,255,0.5)' }}>
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FiMessageCircle className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[11px] text-muted-foreground">Powered by</span>
+            <span className="text-[11px] font-medium text-foreground">Master Orchestrator</span>
+            <span className="text-[11px] text-muted-foreground hidden sm:inline">| Xfinity Customer Support Agent</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className={cn('w-1.5 h-1.5 rounded-full', isAgentActive ? 'bg-amber-400 animate-pulse' : 'bg-green-500')} />
+            <span className="text-[11px] text-muted-foreground">{isAgentActive ? 'Processing' : 'Ready'}</span>
+          </div>
         </div>
       </div>
     </div>
